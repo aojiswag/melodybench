@@ -28,7 +28,7 @@ def menu():
         "4. pitch2wav", sep="\n")
 
 def noargs():
-    print("\033[95m", "파일명을 입력하세요")
+    print("\033[95m", "input file")
 
 
 def main():
@@ -80,7 +80,7 @@ def main():
             cuda = True if GPUMEM > 1024 * 8 else False
 
             demucs(src=f"{src_path}{args}", cuda=cuda)
-        
+
 
 
         
