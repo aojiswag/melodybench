@@ -4,7 +4,7 @@ import resampy
 import numpy as np
 import librosa
 
-def pitchpred(src, cuda):
+def pitchpred(src, cuda: bool):
     y, sr = librosa.load(src, sr=16000)
     print(sr)
 
@@ -50,7 +50,11 @@ def pitchpred(src, cuda):
 
 def bpmpred(src):
     y, sr = librosa.load(src, sr=16000)
-    hop_length = 320
+    hop_ms = 0.02
+    timestamp_ms = 0.005
+    data_multiply = hop_ms / timestamp_ms
+    hop_length = sr * hop_ms
+    
     onset_env = librosa.onset.onset_strength(
         y=y,
         sr=sr,
@@ -88,12 +92,8 @@ def bpmpred(src):
     # ======================
     # 5. Resample to 5ms grid
     # ======================
-    target_times = np.arange(0, frame_times[-1], 0.005)  # 5 ms
+    target_times = np.arange(0, frame_times[-1], hop_ms)
 
-    bpm_5ms = np.interp(
-        target_times,
-        frame_times,
-        bpm_per_frame
-    )
+    bpm = np.repeat(target_times, 4)
 
-    return bpm_5ms
+    return bpm

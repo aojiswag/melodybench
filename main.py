@@ -16,6 +16,8 @@ print(GPUMEM)
 
 pynvml.nvmlShutdown()
 
+CUDA = True if GPUMEM > 1024 * 8 else False
+
 src_path = "src/"
 
 
@@ -25,7 +27,7 @@ def menu():
         "0. ytmp3 {ytlink} {name}",
         "1. mp32wav {filename}",
         "2. demucs {filename}",
-        "3. mir {filename} {}",
+        "3. mir {filename} {stem (bass/drums/vocals/other)}",
         "4. pitch2wav", sep="\n")
 
 def noargs():
@@ -77,16 +79,31 @@ def main():
             else:
                 name = args
                 args += ".wav"
-
-            cuda = True if GPUMEM > 1024 * 8 else False
-
-            demucs(src=f"{src_path}{args}", cuda=cuda)
+            src_path = f"{src_path}{args}"
+            demucs(src=src_path, cuda=CUDA)
 
         if cmd == "mir":
-            args = args[0]
+            name = args[0]
+            stem = args[1]
+            
             if not args:
                 noargs()
                 continue
+
+            if args.lower().endswith(".wav"):
+                name = args[:-4]
+            else:
+                name = args
+                args += ".wav"
+
+            stem_path = f"htdemucs/{name}/{stem}.wav"
+            src_audio = f"{src_path}{args}"
+
+            pitch, confidence, timestamp = pitchpred(stem_path, cuda=CUDA)
+
+            bpm = bpmpred(src_audio)
+
+            
             
             
 
