@@ -2,6 +2,7 @@
 from audio2wav import audio2wav
 from ytdownload import ytmp3
 
+import numpy as np
 import pynvml
 from demucs import demucs
 from mir import bpmpred, pitchpred
@@ -18,7 +19,7 @@ pynvml.nvmlShutdown()
 
 CUDA = True if GPUMEM > 1024 * 8 else False
 
-src_path = "src/"
+SRC_PATH = "src/"
 
 
 def menu():
@@ -53,7 +54,7 @@ def main():
             yturl = args[0]
             name = args[1]
 
-            ytmp3(url=yturl, name=name, src_path=src_path)
+            ytmp3(url=yturl, name=name, src_path=SRC_PATH)
         
         if cmd == "mp32wav":
             args = args[0]
@@ -66,7 +67,7 @@ def main():
                 name = args
                 args += ".mp3"
             print(args)
-            audio2wav(src=f"{src_path}{args}", dst=f"{src_path}{name}.wav")
+            audio2wav(src=f"{SRC_PATH}{args}", dst=f"{SRC_PATH}{name}.wav")
 
         if cmd == "demucs":
             args = args[0]
@@ -79,31 +80,41 @@ def main():
             else:
                 name = args
                 args += ".wav"
-            src_path = f"{src_path}{args}"
+            src_path = f"{SRC_PATH}{args}"
             demucs(src=src_path, cuda=CUDA)
 
         if cmd == "mir":
-            name = args[0]
+            file = args[0]
             stem = args[1]
             
             if not args:
                 noargs()
                 continue
 
-            if args.lower().endswith(".wav"):
-                name = args[:-4]
+            if file.lower().endswith(".wav"):
+                name = args[0][:-4]
             else:
-                name = args
-                args += ".wav"
+                name = args[0]
+                file = name+".wav"
 
-            stem_path = f"htdemucs/{name}/{stem}.wav"
-            src_audio = f"{src_path}{args}"
+            stem_path = f"demucsout/htdemucs/{name}/{stem}.wav"
+            src_audio = f"{SRC_PATH}{file}"
 
             pitch, confidence, timestamp = pitchpred(stem_path, cuda=CUDA)
 
             bpm = bpmpred(src_audio)
+            print(pitch, confidence, timestamp, bpm)
+            min_len = min(len(pitch), len(confidence), len(timestamp), len(bpm))
+
+            result = np.stack([
+                pitch[:min_len],
+                confidence[:min_len],
+                timestamp[:min_len],
+                bpm[:min_len]
+            ], axis=1)
 
             
+            np.savetxt(f"crepeout/{name}.csv", result, delimiter=",", fmt="%.6f")
             
             
 

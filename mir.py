@@ -53,7 +53,7 @@ def bpmpred(src):
     hop_ms = 0.02
     timestamp_ms = 0.005
     data_multiply = hop_ms / timestamp_ms
-    hop_length = sr * hop_ms
+    hop_length = int(sr * hop_ms)
     
     onset_env = librosa.onset.onset_strength(
         y=y,
@@ -69,6 +69,7 @@ def bpmpred(src):
         sr=sr,
         hop_length=hop_length
     )
+    
 
     # BPM values for tempogram rows
     bpms = librosa.tempo_frequencies(
@@ -76,7 +77,9 @@ def bpmpred(src):
         sr=sr,
         hop_length=hop_length
     )
-
+    valid = (bpms > 30) & (bpms < 300)
+    bpms = bpms[valid]
+    tempogram = tempogram[valid, :]
     # ======================
     # 4. Pick strongest BPM per frame
     # ======================
@@ -94,6 +97,6 @@ def bpmpred(src):
     # ======================
     target_times = np.arange(0, frame_times[-1], hop_ms)
 
-    bpm = np.repeat(target_times, 4)
+    bpm = np.repeat(bpm_per_frame, 4)
 
     return bpm
