@@ -4,6 +4,7 @@ from ytdownload import ytmp3
 
 import pynvml
 from demucs import demucs
+from mir import bpmpred, pitchpred
 
 pynvml.nvmlInit()
 
@@ -24,7 +25,7 @@ def menu():
         "0. ytmp3 {ytlink} {name}",
         "1. mp32wav {filename}",
         "2. demucs {filename}",
-        "3. mir {filename}",
+        "3. mir {filename} {}",
         "4. pitch2wav", sep="\n")
 
 def noargs():
@@ -81,9 +82,14 @@ def main():
 
             demucs(src=f"{src_path}{args}", cuda=cuda)
 
+        if cmd == "mir":
+            args = args[0]
+            if not args:
+                noargs()
+                continue
+            
+            
 
-
-        
 
 if __name__ == "__main__":
     main()
