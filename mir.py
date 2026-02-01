@@ -11,7 +11,7 @@ def pitchpred(src, dt_ms, cuda: bool):
 
     audio = torch.from_numpy(y).float().unsqueeze(0)
 
-    hop_length = sr * dt_ms
+    hop_length = int(sr * dt_ms)
 
     # Provide a sensible frequency range for your domain (upper limit is 2006 Hz)
     # This would be a reasonable range for speech

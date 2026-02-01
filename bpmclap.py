@@ -2,6 +2,7 @@ import numpy as np
 import librosa
 import soundfile as sf
 import pandas as pd
+import os
 
 
 def generate_clap(sr, duration=0.03):
@@ -15,7 +16,7 @@ def generate_clap(sr, duration=0.03):
 def bpm_to_beat_times(bpm_seq, dt):
     beat_times = []
     t = 0.0
-    acc = 0.0
+    acc = -0.94
 
     for bpm in bpm_seq:
         if bpm <= 0:
@@ -46,6 +47,8 @@ def add_claps(audio, sr, beat_times, clap):
     return out
 
 def bpmclap(src_path, src_mir_path, dt):
+    
+    name = os.path.splitext(os.path.basename(src_path))[0]
 
     # 1. load audio
     y, sr = librosa.load(src_path, sr=None)

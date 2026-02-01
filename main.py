@@ -31,7 +31,7 @@ def menu():
         "2. demucs {filename}",
         "3. mir {filename} {stem (bass/drums/vocals/other)}",
         "4. pitch2wav",
-        "5. bpmclap {filename}" sep="\n")
+        "5. bpmclap {filename}", sep="\n")
 
 def noargs():
     print("\033[95m", "input file")
@@ -131,7 +131,7 @@ def main():
             src_audio_path = f"{SRC_PATH}/{file}"
             src_mir_path = f"mirout/{name}.csv"
 
-            b
+            bpmclap(src_path=src_audio_path, src_mir_path=src_mir_path, dt=0.005)
             
             
 
