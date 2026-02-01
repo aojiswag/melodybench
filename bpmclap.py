@@ -12,7 +12,54 @@ def generate_clap(sr, duration=0.03):
     clap /= np.max(np.abs(clap))
     return clap
 
+def bpm_to_beat_times(bpm_seq, dt):
+    beat_times = []
+    t = 0.0
+    acc = 0.0
 
-def bpmclap(src, dt):
+    for bpm in bpm_seq:
+        if bpm <= 0:
+            t += dt
+            continue
+
+        interval = 60.0 / bpm
+        acc += dt
+
+        if acc >= interval:
+            beat_times.append(t)
+            acc -= interval
+
+        t += dt
+
+    return np.array(beat_times)
+
+def add_claps(audio, sr, beat_times, clap):
+    out = audio.copy()
+
+    for bt in beat_times:
+        idx = int(bt * sr)
+        if idx + len(clap) < len(out):
+            out[idx:idx+len(clap)] += clap
+
+    # clipping 방지
+    out /= max(1.0, np.max(np.abs(out)))
+    return out
+
+def bpmclap(src_path, src_mir_path, dt):
+
+    # 1. load audio
+    y, sr = librosa.load(src_path, sr=None)
+    bpm_seq = pd.read_csv(src_mir_path, header=None).iloc[:, 3].values
     
-    bpm_seq = pd.read_csv("x_bpm.csv", header=None).iloc[:, 3].values
+    # 2. clap
+    clap = generate_clap(sr)
+
+    # 3. BPM → beat times
+    beat_times = bpm_to_beat_times(bpm_seq, dt)
+
+    # 4. mix
+    y_out = add_claps(y, sr, beat_times, clap)
+
+    # 5. save
+    sf.write(f"bpmclap/{name}.wav", y_out, sr)
+    

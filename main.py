@@ -6,6 +6,7 @@ import numpy as np
 import pynvml
 from demucs import demucs
 from mir import bpmpred, pitchpred
+from bpmclap import bpmclap
 
 pynvml.nvmlInit()
 
@@ -114,10 +115,23 @@ def main():
                 bpm[:min_len]
             ], axis=1)
             
-            np.savetxt(f"crepeout/{name}.csv", result, delimiter=",", fmt="%.6f")
+            np.savetxt(f"mirout/{name}.csv", result, delimiter=",", fmt="%.6f")
 
         if cmd == "bpmclap":
-            
+            file = args[0]
+
+            if file.lower().endswith(".wav"):
+                name = args[0][:-4]
+            elif file.lower().endswith(".csv"):
+                name = args[0][:-4]
+            else:
+                name = args[0]
+                file = name+".wav"
+
+            src_audio_path = f"{SRC_PATH}/{file}"
+            src_mir_path = f"mirout/{name}.csv"
+
+            b
             
             
 
