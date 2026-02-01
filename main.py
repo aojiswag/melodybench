@@ -29,7 +29,8 @@ def menu():
         "1. mp32wav {filename}",
         "2. demucs {filename}",
         "3. mir {filename} {stem (bass/drums/vocals/other)}",
-        "4. pitch2wav", sep="\n")
+        "4. pitch2wav",
+        "5. bpmclap {filename}" sep="\n")
 
 def noargs():
     print("\033[95m", "input file")
@@ -86,6 +87,7 @@ def main():
         if cmd == "mir":
             file = args[0]
             stem = args[1]
+            dt = 0.005
             
             if not args:
                 noargs()
@@ -99,10 +101,9 @@ def main():
 
             stem_path = f"demucsout/htdemucs/{name}/{stem}.wav"
             src_audio = f"{SRC_PATH}{file}"
+            pitch, confidence, timestamp = pitchpred(src=stem_path, dt_ms=dt, cuda=CUDA)
 
-            pitch, confidence, timestamp = pitchpred(stem_path, cuda=CUDA)
-
-            bpm = bpmpred(src_audio)
+            bpm = bpmpred(src=src_audio, hop_ms=0.02, dt_ms=dt)
             print(pitch, confidence, timestamp, bpm)
             min_len = min(len(pitch), len(confidence), len(timestamp), len(bpm))
 
@@ -112,9 +113,11 @@ def main():
                 timestamp[:min_len],
                 bpm[:min_len]
             ], axis=1)
-
             
             np.savetxt(f"crepeout/{name}.csv", result, delimiter=",", fmt="%.6f")
+
+        if cmd == "bpmclap":
+            
             
             
 

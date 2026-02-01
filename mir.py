@@ -4,13 +4,14 @@ import resampy
 import numpy as np
 import librosa
 
-def pitchpred(src, cuda: bool):
+
+def pitchpred(src, dt_ms, cuda: bool):
     y, sr = librosa.load(src, sr=16000)
     print(sr)
 
     audio = torch.from_numpy(y).float().unsqueeze(0)
 
-    hop_length = 80
+    hop_length = sr * dt_ms
 
     # Provide a sensible frequency range for your domain (upper limit is 2006 Hz)
     # This would be a reasonable range for speech
@@ -48,11 +49,9 @@ def pitchpred(src, cuda: bool):
 
     return pitch, confidence, times
 
-def bpmpred(src):
+def bpmpred(src,hop_ms,dt_ms):
     y, sr = librosa.load(src, sr=16000)
-    hop_ms = 0.02
-    timestamp_ms = 0.005
-    data_multiply = hop_ms / timestamp_ms
+    data_multiply = hop_ms / dt_ms
     hop_length = int(sr * hop_ms)
     
     onset_env = librosa.onset.onset_strength(
