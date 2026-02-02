@@ -20,7 +20,7 @@ def pitchpred(src, dt_ms, cuda: bool):
 
     # Select a model capacity--one of "tiny" or "full"
     model = 'full'
-
+    
     if cuda:
         device = 'cuda:0'
         batch_size = 2048
@@ -31,7 +31,7 @@ def pitchpred(src, dt_ms, cuda: bool):
         print("crepe run as cpu")
 
     # Compute pitch using first gpu
-    pitch, confidence= torchcrepe.predict(audio,
+    pitch, periodicity= torchcrepe.predict(audio,
                             sr,
                             hop_length,
                             fmin,
@@ -41,13 +41,20 @@ def pitchpred(src, dt_ms, cuda: bool):
                             device=device,
                             return_periodicity=True
                             )
+    
+    periodicity = torchcrepe.threshold.Silence(-70.)(
+        periodicity, audio, sr, hop_length
+    )
+
+    periodicity[periodicity < 0.1] = 0
+    pitch[periodicity == 0] = float("nan")
 
     
     pitch = pitch.squeeze(0).cpu().numpy()
-    confidence = confidence.squeeze(0).cpu().numpy()
+    periodicity = periodicity.squeeze(0).cpu().numpy()
     times = np.arange(len(pitch)) * hop_length / sr
 
-    return pitch, confidence, times
+    return pitch, periodicity, times
 
 def bpmpred(src,hop_ms,dt_ms):
     y, sr = librosa.load(src, sr=16000)

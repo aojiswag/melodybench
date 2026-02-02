@@ -7,6 +7,9 @@ import pynvml
 from demucs import demucs
 from mir import bpmpred, pitchpred
 from bpmclap import bpmclap
+import pandas as pd
+from pitch2wav import pitch2wav
+from scipy.io import wavfile
 
 pynvml.nvmlInit()
 
@@ -132,8 +135,22 @@ def main():
             src_mir_path = f"mirout/{name}.csv"
 
             bpmclap(src_path=src_audio_path, src_mir_path=src_mir_path, dt=0.005)
+        
+        if cmd == "pitch2wav":
+            file = args[0]
+            if file.lower().endswith(".csv"):
+                name = args[0][:-4]
+            else:
+                name = args[0]
+                file = name+".csv"
             
+            df = pd.read_csv(f"mirout/{file}", header=None)
+
+            f0, time = (df.iloc[:, 0].to_numpy(), df.iloc[:, 2].to_numpy())
+
+            y, fs = pitch2wav(f0=f0, time=time)
             
+            wavfile.write("f0_harmonics.wav", fs, y)
 
 
 if __name__ == "__main__":
