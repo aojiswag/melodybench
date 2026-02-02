@@ -5,7 +5,101 @@ import numpy as np
 import librosa
 
 
-def pitchpred(src, dt_ms, cuda: bool):
+import numpy as np
+
+def viterbi_f0_predict(
+    f0,
+    alpha=1.0,   # 관측(f0 유지) 가중치
+    beta=2.0,    # 연속성 가중치
+    gamma=0.5,   # harmonic 보너스
+    fmin=50.0,
+    fmax=2000.0
+):
+    T = len(f0)
+
+    # ---------- 후보 생성 ----------
+    candidates = []
+    for t in range(T):
+        if not np.isfinite(f0[t]) or f0[t] <= 0:
+            candidates.append([np.nan])
+            continue
+
+        cands = np.array([
+            f0[t],
+            f0[t] * 0.5,
+            f0[t] * 2.0,
+        ])
+
+        cands = cands[(cands >= fmin) & (cands <= fmax)]
+        candidates.append(cands)
+
+    # ---------- DP 테이블 ----------
+    dp = [np.full(len(c), np.inf) for c in candidates]
+    back = [np.zeros(len(c), dtype=int) for c in candidates]
+
+    dp[0][:] = 0.0
+
+    # ---------- cost 함수 ----------
+    def harmonic_penalty(r):
+        if abs(np.log2(r)) < 0.03:
+            return -gamma       # 유지 보너스
+        if abs(np.log2(r / 2)) < 0.03:
+            return +1.5*gamma       # octave up
+        if abs(np.log2(r / 0.5)) < 0.03:
+            return +2.5*gamma    # octave down (더 위험)
+        return 0.0
+
+    # ---------- Viterbi ----------
+    for t in range(1, T):
+        for j, fj in enumerate(candidates[t]):
+            if not np.isfinite(fj):
+                continue
+
+            best_cost = np.inf
+            best_i = 0
+
+            for i, fi in enumerate(candidates[t - 1]):
+                if not np.isfinite(fi):
+                    continue
+
+                trans = abs(np.log2(fj / fi))
+
+                if abs(trans - 1.0) < 0.04:
+                    trans_cost = 0.0     # octave는 거리로는 벌주지 않음
+                else:
+                    trans_cost = beta * trans
+
+                if not np.isfinite(f0[t]):
+                    emit = 0.0
+                else:
+                    emit = abs(np.log2(fj / f0[t]))
+
+                cost = (
+                    dp[t - 1][i]
+                    + trans_cost
+                    + alpha * emit
+                    + harmonic_penalty(fj / fi)
+                )
+
+                if cost < best_cost:
+                    best_cost = cost
+                    best_i = i
+
+            dp[t][j] = best_cost
+            back[t][j] = best_i
+
+    # ---------- backtrace ----------
+    out = np.zeros(T)
+    idx = np.argmin(dp[-1])
+
+    for t in reversed(range(T)):
+        out[t] = candidates[t][idx]
+        idx = back[t][idx]
+
+    return out
+
+
+def pitchpred(src, dt_ms, cuda: bool, viterbi_smooth: bool):
     y, sr = librosa.load(src, sr=16000)
     print(sr)
 
@@ -42,15 +136,20 @@ def pitchpred(src, dt_ms, cuda: bool):
                             return_periodicity=True
                             )
     
-    periodicity = torchcrepe.threshold.Silence(-70.)(
+    periodicity = torchcrepe.threshold.Silence(-65.)(
         periodicity, audio, sr, hop_length
     )
 
-    periodicity[periodicity < 0.1] = 0
+    #periodicity[periodicity < 0.03] = 0
     pitch[periodicity == 0] = float("nan")
 
     
     pitch = pitch.squeeze(0).cpu().numpy()
+    
+    if viterbi_smooth:
+        f0_smooth = viterbi_f0_predict(pitch)
+        pitch[:] = f0_smooth   # 🔥 원본 덮어쓰기
+
     periodicity = periodicity.squeeze(0).cpu().numpy()
     times = np.arange(len(pitch)) * hop_length / sr
 
