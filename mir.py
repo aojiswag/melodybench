@@ -159,12 +159,12 @@ def pitchpred(src, dt_ms, cuda: bool, viterbi_smooth: bool):
 
     
     pitch = pitch.squeeze(0).cpu().numpy()
-    
+    periodicity = periodicity.squeeze(0).cpu().numpy()
+
     if viterbi_smooth:
         f0_smooth = viterbi_f0_predict(f0=pitch, periodicity=periodicity)
         pitch[:] = f0_smooth   # 🔥 원본 덮어쓰기
-
-    periodicity = periodicity.squeeze(0).cpu().numpy()
+        
     times = np.arange(len(pitch)) * hop_length / sr
 
     return pitch, periodicity, times
