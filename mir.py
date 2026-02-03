@@ -8,10 +8,10 @@ import librosa
 import numpy as np
 def viterbi_f0_predict(
     f0,
-    periodicity=None,        # ⭐ 있으면 꼭 넣기
-    alpha=3.0,               # emission 강화
-    beta=2.0,                # 연속성
-    gamma=0.5,               # harmonic 미세조정
+    periodicity=None,
+    alpha=3.0,
+    beta=2.0,
+    gamma=0.5,
     fmin=50.0,
     fmax=2000.0,
     octave_penalty=0.5
@@ -21,23 +21,34 @@ def viterbi_f0_predict(
     # ---------- 후보 생성 ----------
     candidates = []
     for t in range(T):
-        if not np.isfinite(f0[t]) or f0[t] <= 0:
-            candidates.append([np.nan])
-            continue
+        cands = set()
 
-        cands = [f0[t]]
+        if np.isfinite(f0[t]) and f0[t] > 0:
+            # 관측 기반
+            cands.add(f0[t])
+            if f0[t] * 0.5 >= fmin:
+                cands.add(f0[t] * 0.5)
 
-        # octave down
-        if f0[t] * 0.5 >= fmin:
-            cands.append(f0[t] * 0.5)
+            # octave-up은 매우 보수적으로
+            if (
+                t > 0 and np.isfinite(f0[t - 1])
+                and abs(np.log2(f0[t] / f0[t - 1])) < 0.4
+                and f0[t] * 2.0 <= fmax
+            ):
+                cands.add(f0[t] * 2.0)
 
-        # octave up는 "관측이 안정적일 때만"
-        if t > 0 and np.isfinite(f0[t - 1]):
-            if abs(np.log2(f0[t] / f0[t - 1])) < 0.5:
-                if f0[t] * 2.0 <= fmax:
-                    cands.append(f0[t] * 2.0)
+        # ⭐ 이전 프레임 기반 (복귀 경로 핵심)
+        if t > 0 and np.isfinite(f0[t - 1]) and f0[t - 1] > 0:
+            prev = f0[t - 1]
+            if fmin <= prev <= fmax:
+                cands.add(prev)
+            if prev * 0.5 >= fmin:
+                cands.add(prev * 0.5)
 
-        candidates.append(np.array(cands))
+        if len(cands) == 0:
+            candidates.append(np.array([np.nan]))
+        else:
+            candidates.append(np.array(sorted(cands)))
 
     # ---------- DP 테이블 ----------
     dp = [np.full(len(c), np.inf) for c in candidates]
@@ -46,12 +57,11 @@ def viterbi_f0_predict(
 
     # ---------- harmonic penalty ----------
     def harmonic_penalty(r):
-        if abs(np.log2(r)) < 0.03:
+        lr = abs(np.log2(r))
+        if lr < 0.03:
             return -gamma
-        if abs(np.log2(r / 2)) < 0.03:
+        if abs(lr - 1.0) < 0.03:
             return +gamma
-        if abs(np.log2(r / 0.5)) < 0.03:
-            return +2 * gamma
         return 0.0
 
     # ---------- Viterbi ----------
@@ -69,24 +79,24 @@ def viterbi_f0_predict(
 
                 # transition
                 trans = abs(np.log2(fj / fi))
-                if abs(trans - 1.0) < 0.04:   # octave jump
+                if abs(trans - 1.0) < 0.04:
                     trans_cost = beta * trans * octave_penalty
                 else:
                     trans_cost = beta * trans
 
-                # emission (관측 신뢰도 반영)
+                # emission (periodicity 반영)
                 if not np.isfinite(f0[t]):
                     emit = 0.0
                 else:
                     conf = 1.0
-                    if periodicity is not None:
+                    if periodicity is not None and t < len(periodicity):
                         conf = max(periodicity[t], 1e-3)
                     emit = abs(np.log2(fj / f0[t])) / conf
 
-                # fmax edge penalty (흡수 상태 제거)
+                # fmax 흡수 방지
                 edge_penalty = 0.0
                 if fj > 0.85 * fmax:
-                    edge_penalty = 2.0 * (fj / fmax) ** 2
+                    edge_penalty = 3.0 * (fj / fmax) ** 2
 
                 cost = (
                     dp[t - 1][i]
@@ -111,6 +121,8 @@ def viterbi_f0_predict(
         idx = back[t][idx]
 
     return out
+
+
 
 
 def pitchpred(src, dt_ms, cuda: bool, viterbi_smooth: bool):
@@ -164,7 +176,7 @@ def pitchpred(src, dt_ms, cuda: bool, viterbi_smooth: bool):
     if viterbi_smooth:
         f0_smooth = viterbi_f0_predict(f0=pitch, periodicity=periodicity)
         pitch[:] = f0_smooth   # 🔥 원본 덮어쓰기
-        
+
     times = np.arange(len(pitch)) * hop_length / sr
 
     return pitch, periodicity, times
