@@ -6,12 +6,12 @@ import librosa
 
 
 import numpy as np
-
 def viterbi_f0_predict(
     f0,
-    alpha=1.0,   # 관측(f0 유지) 가중치
-    beta=2.0,    # 연속성 가중치
-    gamma=0.5,   # harmonic 보너스
+    periodicity=None,        # ⭐ 있으면 꼭 넣기
+    alpha=3.0,               # emission 강화
+    beta=2.0,                # 연속성
+    gamma=0.5,               # harmonic 미세조정
     fmin=50.0,
     fmax=2000.0,
     octave_penalty=0.5
@@ -25,29 +25,33 @@ def viterbi_f0_predict(
             candidates.append([np.nan])
             continue
 
-        cands = np.array([
-            f0[t],
-            f0[t] * 0.5,
-            f0[t] * 2.0,
-        ])
+        cands = [f0[t]]
 
-        cands = cands[(cands >= fmin) & (cands <= fmax)]
-        candidates.append(cands)
+        # octave down
+        if f0[t] * 0.5 >= fmin:
+            cands.append(f0[t] * 0.5)
+
+        # octave up는 "관측이 안정적일 때만"
+        if t > 0 and np.isfinite(f0[t - 1]):
+            if abs(np.log2(f0[t] / f0[t - 1])) < 0.5:
+                if f0[t] * 2.0 <= fmax:
+                    cands.append(f0[t] * 2.0)
+
+        candidates.append(np.array(cands))
 
     # ---------- DP 테이블 ----------
     dp = [np.full(len(c), np.inf) for c in candidates]
     back = [np.zeros(len(c), dtype=int) for c in candidates]
-
     dp[0][:] = 0.0
 
-    # ---------- cost 함수 ----------
+    # ---------- harmonic penalty ----------
     def harmonic_penalty(r):
         if abs(np.log2(r)) < 0.03:
-            return -gamma           # 유지 보너스
+            return -gamma
         if abs(np.log2(r / 2)) < 0.03:
-            return +gamma           # octave up
+            return +gamma
         if abs(np.log2(r / 0.5)) < 0.03:
-            return +2*gamma         # octave down
+            return +2 * gamma
         return 0.0
 
     # ---------- Viterbi ----------
@@ -63,23 +67,33 @@ def viterbi_f0_predict(
                 if not np.isfinite(fi):
                     continue
 
+                # transition
                 trans = abs(np.log2(fj / fi))
-
-                if abs(trans - 1.0) < 0.04:
+                if abs(trans - 1.0) < 0.04:   # octave jump
                     trans_cost = beta * trans * octave_penalty
                 else:
                     trans_cost = beta * trans
 
+                # emission (관측 신뢰도 반영)
                 if not np.isfinite(f0[t]):
                     emit = 0.0
                 else:
-                    emit = abs(np.log2(fj / f0[t]))
+                    conf = 1.0
+                    if periodicity is not None:
+                        conf = max(periodicity[t], 1e-3)
+                    emit = abs(np.log2(fj / f0[t])) / conf
+
+                # fmax edge penalty (흡수 상태 제거)
+                edge_penalty = 0.0
+                if fj > 0.85 * fmax:
+                    edge_penalty = 2.0 * (fj / fmax) ** 2
 
                 cost = (
                     dp[t - 1][i]
                     + trans_cost
                     + alpha * emit
                     + harmonic_penalty(fj / fi)
+                    + edge_penalty
                 )
 
                 if cost < best_cost:
@@ -92,7 +106,6 @@ def viterbi_f0_predict(
     # ---------- backtrace ----------
     out = np.zeros(T)
     idx = np.argmin(dp[-1])
-
     for t in reversed(range(T)):
         out[t] = candidates[t][idx]
         idx = back[t][idx]
@@ -148,7 +161,7 @@ def pitchpred(src, dt_ms, cuda: bool, viterbi_smooth: bool):
     pitch = pitch.squeeze(0).cpu().numpy()
     
     if viterbi_smooth:
-        f0_smooth = viterbi_f0_predict(pitch)
+        f0_smooth = viterbi_f0_predict(f0=pitch, periodicity=periodicity)
         pitch[:] = f0_smooth   # 🔥 원본 덮어쓰기
 
     periodicity = periodicity.squeeze(0).cpu().numpy()
