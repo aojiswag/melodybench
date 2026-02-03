@@ -13,7 +13,8 @@ def viterbi_f0_predict(
     beta=2.0,    # 연속성 가중치
     gamma=0.5,   # harmonic 보너스
     fmin=50.0,
-    fmax=2000.0
+    fmax=2000.0,
+    octave_penalty=0.5
 ):
     T = len(f0)
 
@@ -42,11 +43,11 @@ def viterbi_f0_predict(
     # ---------- cost 함수 ----------
     def harmonic_penalty(r):
         if abs(np.log2(r)) < 0.03:
-            return -gamma       # 유지 보너스
+            return -gamma           # 유지 보너스
         if abs(np.log2(r / 2)) < 0.03:
-            return +1.5*gamma       # octave up
+            return +gamma           # octave up
         if abs(np.log2(r / 0.5)) < 0.03:
-            return +2.5*gamma    # octave down (더 위험)
+            return +2*gamma         # octave down
         return 0.0
 
     # ---------- Viterbi ----------
@@ -65,7 +66,7 @@ def viterbi_f0_predict(
                 trans = abs(np.log2(fj / fi))
 
                 if abs(trans - 1.0) < 0.04:
-                    trans_cost = 0.0     # octave는 거리로는 벌주지 않음
+                    trans_cost = beta * trans * octave_penalty
                 else:
                     trans_cost = beta * trans
 
