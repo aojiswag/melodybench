@@ -173,11 +173,10 @@ def pitchpred(src, dt_ms, cuda: bool, viterbi_smooth: bool):
     )
 
     #periodicity[periodicity < 0.03] = 0
-    pitch[periodicity == 0] = float("nan")
 
-    
     pitch = pitch.squeeze(0).cpu().numpy()
     periodicity = periodicity.squeeze(0).cpu().numpy()
+    print(pitch)
 
     pitch = clamp_octave_jump(pitch, periodicity)
     pitch = scipy.signal.medfilt(pitch, kernel_size=5)
