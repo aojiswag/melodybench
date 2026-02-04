@@ -3,12 +3,33 @@ import torch
 import resampy
 import numpy as np
 import librosa
-
+import scipy
 
 import numpy as np
 import librosa
 import torch
 import torchcrepe
+
+
+def clamp_octave_jump(
+    f0,
+    periodicity,
+    max_jump_octaves=0.7,
+    conf_thresh=0.3
+):
+    f0 = f0.copy()
+
+    for t in range(1, len(f0)):
+        if not np.isfinite(f0[t]) or not np.isfinite(f0[t-1]):
+            continue
+
+        jump = np.log2(f0[t] / f0[t-1])
+
+        if abs(jump) > max_jump_octaves and periodicity[t] < conf_thresh:
+            f0[t] = f0[t-1]
+
+    return f0
+
 
 
 def viterbi_f0_predict(
@@ -158,9 +179,8 @@ def pitchpred(src, dt_ms, cuda: bool, viterbi_smooth: bool):
     pitch = pitch.squeeze(0).cpu().numpy()
     periodicity = periodicity.squeeze(0).cpu().numpy()
 
-    if viterbi_smooth:
-        f0_smooth = viterbi_f0_predict(f0=pitch, periodicity=periodicity)
-        pitch[:] = f0_smooth   # 🔥 원본 덮어쓰기
+    pitch = clamp_octave_jump(pitch, periodicity)
+    pitch = scipy.signal.medfilt(pitch, kernel_size=5)
 
     times = np.arange(len(pitch)) * hop_length / sr
 
