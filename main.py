@@ -105,7 +105,7 @@ def main():
 
             stem_path = f"demucsout/htdemucs/{name}/{stem}.wav"
             src_audio = f"{SRC_PATH}{file}"
-            pitch, confidence, timestamp = pitchpred(src=stem_path, dt_ms=dt, cuda=CUDA, viterbi_smooth=True)
+            timestamp, pitch, confidence = pitchpred(src=stem_path, dt_ms=dt, cuda=CUDA, viterbi_smooth=True)
 
             bpm = bpmpred(src=src_audio, hop_ms=0.02, dt_ms=dt)
             print(pitch, confidence, timestamp, bpm)

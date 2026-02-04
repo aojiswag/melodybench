@@ -10,6 +10,7 @@ import librosa
 import torch
 import torchcrepe
 
+import crepe
 
 def clamp_octave_jump(
     f0,
@@ -157,33 +158,12 @@ def pitchpred(src, dt_ms, cuda: bool, viterbi_smooth: bool):
         print("crepe run as cpu")
 
     # Compute pitch using first gpu
-    pitch, periodicity= torchcrepe.predict(audio,
-                            sr,
-                            hop_length,
-                            fmin,
-                            fmax,
-                            model,
-                            batch_size=batch_size,
-                            device=device,
-                            return_periodicity=True
-                            )
-    
-    periodicity = torchcrepe.threshold.Silence(-65.)(
-        periodicity, audio, sr, hop_length
-    )
+    time, f0, periodicity = crepe.predict(audio, sr, viterbi=True)
+    print(type(f0))
+    f0 = clamp_octave_jump(f0, periodicity)
+    f0 = scipy.signal.medfilt(f0, kernel_size=5)
 
-    #periodicity[periodicity < 0.03] = 0
-
-    pitch = pitch.squeeze(0).cpu().numpy()
-    periodicity = periodicity.squeeze(0).cpu().numpy()
-    print(pitch)
-
-    pitch = clamp_octave_jump(pitch, periodicity)
-    pitch = scipy.signal.medfilt(pitch, kernel_size=5)
-
-    times = np.arange(len(pitch)) * hop_length / sr
-
-    return pitch, periodicity, times
+    return time, f0, periodicity
 
 def bpmpred(src,hop_ms,dt_ms):
     y, sr = librosa.load(src, sr=16000)
