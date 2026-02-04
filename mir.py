@@ -124,7 +124,6 @@ def viterbi_f0_predict(
 
 
 
-
 def pitchpred(src, dt_ms, cuda: bool, viterbi_smooth: bool):
     y, sr = librosa.load(src, sr=16000)
     print(sr)
